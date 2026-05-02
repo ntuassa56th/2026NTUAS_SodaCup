@@ -19,7 +19,6 @@
         .sport-badge { background: #FF9800; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; }
         .quota-badge { background: #E53935; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; }
         
-        /* Admin 專屬樣式 */
         .admin-mode .sport-badge { background: #333; }
         .admin-mode .quota-badge { background: #4CAF50; }
     </style>
@@ -29,7 +28,7 @@
         <h2>🛠️ 計分控制台</h2>
 
         <div id="login-section">
-            <p>請輸入專屬密碼</p>
+            <p>請輸入密碼</p>
             <input type="password" id="pwd" placeholder="輸入密碼...">
             <button onclick="login()">登入</button>
             <div id="login-msg" class="msg error"></div>
@@ -41,7 +40,6 @@
                 <div class="quota-badge" id="current-quota">剩餘額度：計算中...</div>
             </div>
             
-            <!-- 只有 Admin 會看到的項目選單 -->
             <select id="admin-sport-select" class="hidden">
                 <option value="桌球">桌球</option>
                 <option value="排球">排球</option>
@@ -54,8 +52,8 @@
                 <option value="">載入選手名單中...</option>
             </select>
             
-            <!-- 移除了 min="1"，現在可以輸入負數了！ -->
-            <input type="number" id="pts" placeholder="輸入分數 (支援負數扣分)">
+            <!-- 分數輸入框 -->
+            <input type="number" id="pts" placeholder="輸入分數">
             <button onclick="submitScore()">確認送出</button>
             <div id="status" class="msg"></div>
         </div>
@@ -82,6 +80,7 @@
             const pwd = document.getElementById('pwd').value;
             if (accounts[pwd]) {
                 activeSport = accounts[pwd];
+                const ptsInput = document.getElementById('pts');
                 
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('admin-section').classList.remove('hidden');
@@ -89,12 +88,21 @@
                 if (activeSport === 'admin') {
                     userRole = 'admin';
                     document.getElementById('badges').classList.add('admin-mode');
-                    document.getElementById('current-sport').innerText = `登入：Admin (最高權限)`;
+                    document.getElementById('current-sport').innerText = `登入：Admin`;
                     document.getElementById('current-quota').innerText = `權限：無限制`;
-                    document.getElementById('admin-sport-select').classList.remove('hidden'); // 顯示跨項目選單
+                    document.getElementById('admin-sport-select').classList.remove('hidden');
+                    
+                    // Admin 專屬設定：可輸入負數
+                    ptsInput.placeholder = "輸入分數 (支援負數扣分)";
+                    ptsInput.removeAttribute('min'); 
                 } else {
                     userRole = 'captain';
                     document.getElementById('current-sport').innerText = `登入項目：${activeSport}`;
+                    
+                    // 隊長專屬設定：只能輸入正數
+                    ptsInput.placeholder = "輸入分數...";
+                    ptsInput.setAttribute('min', '1'); 
+                    
                     fetchQuota(); 
                 }
                 
@@ -105,7 +113,7 @@
         }
 
         async function fetchQuota() {
-            if (userRole === 'admin') return; // Admin 不用查額度
+            if (userRole === 'admin') return; 
             try {
                 const response = await fetch(`${API_URL}?action=get_quota&sport=${activeSport}`);
                 const result = await response.json();
@@ -136,26 +144,31 @@
         async function submitScore() {
             const player = document.getElementById('player').value;
             const pts = document.getElementById('pts').value;
+            const ptsValue = parseInt(pts);
             
-            // 如果是 admin，以選單選的項目為準；如果是隊長，就以他們的登入項目為準
             const targetSport = (userRole === 'admin') ? document.getElementById('admin-sport-select').value : activeSport;
 
             if(!player) { alert('請選擇選手！'); return; }
             if(pts === '') { alert('請輸入分數！'); return; }
+            
+            // 前端防線：如果隊長輸入小於等於 0 的數字，直接擋下
+            if(userRole !== 'admin' && ptsValue <= 0) {
+                alert('僅可進行加分！');
+                return;
+            }
 
             const statusEl = document.getElementById('status');
             statusEl.innerText = "⏳ 上傳雲端中...";
             statusEl.className = 'msg';
             
             try {
-                // 將 userRole 一併傳給雲端，讓後端知道是不是 Admin 在操作
-                const requestUrl = `${API_URL}?action=add&id=${player}&points=${pts}&sport=${targetSport}&role=${userRole}`;
+                const requestUrl = `${API_URL}?action=add&id=${player}&points=${ptsValue}&sport=${targetSport}&role=${userRole}`;
                 const response = await fetch(requestUrl);
                 const result = await response.json();
 
                 if(result.success) {
-                    let actionText = (parseInt(pts) > 0) ? '加上' : '扣除';
-                    statusEl.innerText = `✅ 成功為選手在「${targetSport}」${actionText} ${Math.abs(pts)} 分！`;
+                    let actionText = (ptsValue > 0) ? '加上' : '扣除';
+                    statusEl.innerText = `✅ 成功為選手在「${targetSport}」${actionText} ${Math.abs(ptsValue)} 分！`;
                     statusEl.className = 'msg success';
                     document.getElementById('pts').value = ''; 
                     
