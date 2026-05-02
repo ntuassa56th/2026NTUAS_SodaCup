@@ -3,34 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🥤 汽水盃 | 即時排行榜</title>
+    <title>🥤 汽水盃 | 跨項目積分排行榜</title>
     <style>
-        body { font-family: sans-serif; background: #E3F2FD; padding: 20px; text-align: center; }
-        .container { max-width: 500px; background: white; padding: 20px; border-radius: 12px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        body { font-family: sans-serif; background: #E3F2FD; padding: 10px; text-align: center; }
+        .container { max-width: 800px; background: white; padding: 20px; border-radius: 12px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .table-wrapper { overflow-x: auto; margin-top: 20px; } /* 讓表格在手機上可以左右滑動 */
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-size: 15px; }
+        th { background-color: #f4f4f4; white-space: nowrap; }
+        .player-col { text-align: left; }
+        .total-col { font-weight: bold; color: #D32F2F; font-size: 1.1em; background-color: #ffebee; }
         .rank-1 { color: #FFD700; font-weight: bold; font-size: 1.2em; }
         .rank-2 { color: #C0C0C0; font-weight: bold; font-size: 1.1em; }
         .rank-3 { color: #CD7F32; font-weight: bold; font-size: 1.1em; }
-        .loading { color: #666; font-style: italic; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🏆 汽水盃總排行榜</h1>
-        <p>即時戰況更新！</p>
-        <table>
-            <thead>
-                <tr><th>名次</th><th>選手</th><th>積分</th></tr>
-            </thead>
-            <tbody id="leaderboard-body">
-                <tr><td colspan="3" class="loading">📡 正在連線至雲端讀取分數...</td></tr>
-            </tbody>
-        </table>
+        <p>各項賽事即時戰況！</p>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>名次</th>
+                        <th class="player-col">選手</th>
+                        <th class="total-col">總積分</th>
+                        <th>桌球</th>
+                        <th>排球</th>
+                        <th>籃球</th>
+                        <th>足球</th>
+                        <th>羽球</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <tr><td colspan="8">📡 正在連線至雲端讀取分數...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-        // ★★★ 請把下面這行引號內的文字，換成你的 Apps Script 網址 ★★★
+        // ★★★ 請替換成你的 URL ★★★
         const API_URL = 'https://script.google.com/macros/s/AKfycbxaUTepnwwoDFg1FqBDe3XDxXNOjJtIhgbj4JJ0-F6qeydnEt3RwGc7tXQbcKMxYuk/exec';
 
         async function fetchScores() {
@@ -38,25 +52,38 @@
                 const response = await fetch(API_URL + '?action=read');
                 let data = await response.json();
                 
-                // 依照分數由高到低排序
-                data.sort((a, b) => b.points - a.points);
+                // 計算每個人的總分
+                data.forEach(player => {
+                    player.totalPts = player.tableTennis + player.volleyball + player.basketball + player.football + player.badminton;
+                });
+
+                // 依照總分由高到低排序
+                data.sort((a, b) => b.totalPts - a.totalPts);
                 
                 const tbody = document.getElementById('leaderboard-body');
-                tbody.innerHTML = ''; // 清空載入中文字
+                tbody.innerHTML = ''; 
                 
                 data.forEach((player, index) => {
                     let rank = index + 1;
                     let cls = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
                     let rankDisplay = rank === 1 ? '🥇 1' : rank === 2 ? '🥈 2' : rank === 3 ? '🥉 3' : rank;
                     
-                    tbody.innerHTML += `<tr><td class="${cls}">${rankDisplay}</td><td>${player.id} ${player.name}</td><td><b>${player.points}</b></td></tr>`;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="${cls}">${rankDisplay}</td>
+                            <td class="player-col">${player.id} ${player.name}</td>
+                            <td class="total-col">${player.totalPts}</td>
+                            <td>${player.tableTennis}</td>
+                            <td>${player.volleyball}</td>
+                            <td>${player.basketball}</td>
+                            <td>${player.football}</td>
+                            <td>${player.badminton}</td>
+                        </tr>`;
                 });
             } catch (error) {
-                document.getElementById('leaderboard-body').innerHTML = '<tr><td colspan="3" style="color:red;">讀取資料失敗，請重新整理網頁。</td></tr>';
+                document.getElementById('leaderboard-body').innerHTML = '<tr><td colspan="8" style="color:red;">讀取資料失敗，請重新整理網頁。</td></tr>';
             }
         }
-
-        // 網頁載入時自動執行
         fetchScores();
     </script>
 </body>
