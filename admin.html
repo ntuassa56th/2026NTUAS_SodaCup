@@ -3,61 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚙️ 汽水盃 | 隊長給分台</title>
+    <title>⚙️ 汽水盃 | 隊長登入系統</title>
     <style>
         body { font-family: sans-serif; background: #FFF3E0; padding: 20px; text-align: center; }
         .container { max-width: 400px; background: white; padding: 20px; border-radius: 12px; margin: auto; border: 2px solid #FF9800; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
         input, select, button { width: 100%; padding: 12px; margin-top: 10px; box-sizing: border-box; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; }
         button { background: #FF9800; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
         button:hover { background: #E68A00; }
-        .msg { color: #333; margin-top: 15px; font-weight: bold; }
+        .msg { margin-top: 15px; font-weight: bold; }
         .success { color: green; }
         .error { color: red; }
+        .sport-badge { display: inline-block; background: #FF9800; color: white; padding: 5px 15px; border-radius: 20px; margin-bottom: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🛠️ 隊長給分控制台</h2>
-        <input type="password" id="pwd" placeholder="輸入隊長專屬密碼 (預設1234)">
-        
-        <select id="player">
-            <option value="">載入選手名單中...</option>
-        </select>
-        
-        <input type="number" id="pts" placeholder="輸入加分額度" min="1">
-        <button onclick="submitScore()">確認送出</button>
-        <div id="status" class="msg"></div>
+        <h2>🛠️ 隊長計分後台</h2>
+
+        <!-- 登入區塊 -->
+        <div id="login-section">
+            <p>請輸入隊長專屬密碼</p>
+            <input type="password" id="pwd" placeholder="例如：0522">
+            <button onclick="login()">登入</button>
+            <div id="login-msg" class="msg error"></div>
+        </div>
+
+        <!-- 給分區塊 (預設隱藏) -->
+        <div id="admin-section" class="hidden">
+            <div class="sport-badge" id="current-sport">目前登入：未知</div>
+            
+            <select id="player">
+                <option value="">載入選手名單中...</option>
+            </select>
+            
+            <input type="number" id="pts" placeholder="輸入要加的分數" min="1">
+            <button onclick="submitScore()">送出加分</button>
+            <div id="status" class="msg"></div>
+        </div>
     </div>
 
     <script>
-        // ★★★ 請把下面這行引號內的文字，換成你的 Apps Script 網址 ★★★
+        // ★★★ 請替換成你的 URL ★★★
         const API_URL = 'https://script.google.com/macros/s/AKfycbxaUTepnwwoDFg1FqBDe3XDxXNOjJtIhgbj4JJ0-F6qeydnEt3RwGc7tXQbcKMxYuk/exec';
 
-        // 網頁一打開，自動去試算表抓選手名單
+        // 設定隊長的密碼 (這裡可以自由改成他們的真實生日，例如 '0522')
+        // 注意排球有兩組密碼，都會對應到 '排球'
+        const captainAccounts = {
+            '0803': '桌球',
+            '0817': '排球',   // 男排隊長密碼
+            '1113': '排球',   // 女排隊長密碼
+            '1018': '籃球',
+            '0120': '足球',
+            '0506': '羽球'
+        };
+
+        let activeSport = ''; // 記錄當前登入的是哪個項目
+
+        function login() {
+            const pwd = document.getElementById('pwd').value;
+            if (captainAccounts[pwd]) {
+                activeSport = captainAccounts[pwd];
+                
+                // 切換介面
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('admin-section').classList.remove('hidden');
+                document.getElementById('current-sport').innerText = `目前登入：${activeSport} 隊長`;
+                
+                // 登入成功後再抓選手名單
+                loadPlayers();
+            } else {
+                document.getElementById('login-msg').innerText = '❌ 密碼錯誤，請確認是否輸入正確。';
+            }
+        }
+
         async function loadPlayers() {
             try {
                 const response = await fetch(API_URL + '?action=read');
                 const players = await response.json();
                 const select = document.getElementById('player');
-                select.innerHTML = ''; // 清空預設選項
+                select.innerHTML = '<option value="">請選擇選手...</option>'; 
                 
                 players.forEach(p => {
                     select.innerHTML += `<option value="${p.id}">${p.id} - ${p.name}</option>`;
                 });
             } catch (error) {
-                document.getElementById('status').innerText = '❌ 無法載入名單，請檢查網路或重整網頁。';
+                document.getElementById('status').innerText = '❌ 無法載入名單，請重新整理網頁。';
                 document.getElementById('status').className = 'msg error';
             }
         }
 
-        // 送出分數邏輯
         async function submitScore() {
-            const pwd = document.getElementById('pwd').value;
             const player = document.getElementById('player').value;
             const pts = document.getElementById('pts').value;
 
-            // 你可以在這裡修改密碼
-            if(pwd !== '1234') { alert('密碼錯誤！'); return; }
             if(!player) { alert('請選擇選手！'); return; }
             if(!pts || pts <= 0) { alert('請輸入正確分數！'); return; }
 
@@ -66,12 +105,13 @@
             statusEl.className = 'msg';
             
             try {
-                const requestUrl = `${API_URL}?action=add&id=${player}&points=${pts}`;
+                // 將 activeSport 一併傳給雲端
+                const requestUrl = `${API_URL}?action=add&id=${player}&points=${pts}&sport=${activeSport}`;
                 const response = await fetch(requestUrl);
                 const result = await response.json();
 
                 if(result.success) {
-                    statusEl.innerText = `✅ 成功為選手加上 ${pts} 分！`;
+                    statusEl.innerText = `✅ 成功為選手在「${activeSport}」加上 ${pts} 分！`;
                     statusEl.className = 'msg success';
                     document.getElementById('pts').value = ''; 
                 } else {
@@ -83,9 +123,6 @@
                 statusEl.className = 'msg error';
             }
         }
-
-        // 載入網頁時執行
-        loadPlayers();
     </script>
 </body>
 </html>
