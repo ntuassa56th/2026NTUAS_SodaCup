@@ -14,24 +14,29 @@
         .msg { margin-top: 15px; font-weight: bold; }
         .success { color: green; }
         .error { color: red; }
-        .sport-badge { display: inline-block; background: #FF9800; color: white; padding: 5px 15px; border-radius: 20px; margin-bottom: 15px; font-weight: bold; }
+        
+        /* 徽章樣式 */
+        .badge-container { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .sport-badge { background: #FF9800; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        .quota-badge { background: #E53935; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>🛠️ 隊長計分後台</h2>
 
-        <!-- 登入區塊 -->
         <div id="login-section">
-            <p>請輸入隊長專屬密碼</p>
-            <input type="password" id="pwd" placeholder="例如：2090">
+            <p>請輸入隊長專屬密碼 (生日)</p>
+            <input type="password" id="pwd" placeholder="例如：0522">
             <button onclick="login()">登入</button>
             <div id="login-msg" class="msg error"></div>
         </div>
 
-        <!-- 給分區塊 (預設隱藏) -->
         <div id="admin-section" class="hidden">
-            <div class="sport-badge" id="current-sport">目前登入：未知</div>
+            <div class="badge-container">
+                <div class="sport-badge" id="current-sport">登入：未知</div>
+                <div class="quota-badge" id="current-quota">剩餘額度：計算中...</div>
+            </div>
             
             <select id="player">
                 <option value="">載入選手名單中...</option>
@@ -47,8 +52,6 @@
         // ★★★ 請替換成你的 URL ★★★
         const API_URL = 'https://script.google.com/macros/s/AKfycbxaUTepnwwoDFg1FqBDe3XDxXNOjJtIhgbj4JJ0-F6qeydnEt3RwGc7tXQbcKMxYuk/exec';
 
-        // 設定隊長的密碼 (這裡可以自由改成他們的真實生日，例如 '0522')
-        // 注意排球有兩組密碼，都會對應到 '排球'
         const captainAccounts = {
             '0803': '桌球',
             '0817': '排球',   // 男排隊長密碼
@@ -58,22 +61,33 @@
             '0506': '羽球'
         };
 
-        let activeSport = ''; // 記錄當前登入的是哪個項目
+        let activeSport = ''; 
 
         function login() {
             const pwd = document.getElementById('pwd').value;
             if (captainAccounts[pwd]) {
                 activeSport = captainAccounts[pwd];
                 
-                // 切換介面
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('admin-section').classList.remove('hidden');
-                document.getElementById('current-sport').innerText = `目前登入：${activeSport} 隊長`;
+                document.getElementById('current-sport').innerText = `登入項目：${activeSport}`;
                 
-                // 登入成功後再抓選手名單
                 loadPlayers();
+                fetchQuota(); // 登入後自動查詢剩餘分數
             } else {
                 document.getElementById('login-msg').innerText = '❌ 密碼錯誤，請確認是否輸入正確。';
+            }
+        }
+
+        async function fetchQuota() {
+            try {
+                const response = await fetch(`${API_URL}?action=get_quota&sport=${activeSport}`);
+                const result = await response.json();
+                if(result.remaining !== undefined) {
+                    document.getElementById('current-quota').innerText = `剩餘可用：${result.remaining} 分`;
+                }
+            } catch (error) {
+                document.getElementById('current-quota').innerText = `額度讀取失敗`;
             }
         }
 
@@ -105,15 +119,17 @@
             statusEl.className = 'msg';
             
             try {
-                // 將 activeSport 一併傳給雲端
                 const requestUrl = `${API_URL}?action=add&id=${player}&points=${pts}&sport=${activeSport}`;
                 const response = await fetch(requestUrl);
                 const result = await response.json();
 
                 if(result.success) {
-                    statusEl.innerText = `✅ 成功為選手在「${activeSport}」加上 ${pts} 分！`;
+                    statusEl.innerText = `✅ 成功為選手加上 ${pts} 分！`;
                     statusEl.className = 'msg success';
                     document.getElementById('pts').value = ''; 
+                    
+                    // 即時更新剩餘額度畫面
+                    document.getElementById('current-quota').innerText = `剩餘可用：${result.remaining} 分`;
                 } else {
                     statusEl.innerText = `❌ 失敗：${result.error}`;
                     statusEl.className = 'msg error';
