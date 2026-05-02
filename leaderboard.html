@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🥤 汽水盃 | 即時排行榜</title>
+    <style>
+        body { font-family: sans-serif; background: #E3F2FD; padding: 20px; text-align: center; }
+        .container { max-width: 500px; background: white; padding: 20px; border-radius: 12px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        .rank-1 { color: #FFD700; font-weight: bold; font-size: 1.2em; }
+        .rank-2 { color: #C0C0C0; font-weight: bold; font-size: 1.1em; }
+        .rank-3 { color: #CD7F32; font-weight: bold; font-size: 1.1em; }
+        .loading { color: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 汽水盃總排行榜</h1>
+        <p>即時戰況更新！</p>
+        <table>
+            <thead>
+                <tr><th>名次</th><th>選手</th><th>積分</th></tr>
+            </thead>
+            <tbody id="leaderboard-body">
+                <tr><td colspan="3" class="loading">📡 正在連線至雲端讀取分數...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // ★★★ 請把下面這行引號內的文字，換成你的 Apps Script 網址 ★★★
+        const API_URL = '你的網頁應用程式網址請貼在這裡';
+
+        async function fetchScores() {
+            try {
+                const response = await fetch(API_URL + '?action=read');
+                let data = await response.json();
+                
+                // 依照分數由高到低排序
+                data.sort((a, b) => b.points - a.points);
+                
+                const tbody = document.getElementById('leaderboard-body');
+                tbody.innerHTML = ''; // 清空載入中文字
+                
+                data.forEach((player, index) => {
+                    let rank = index + 1;
+                    let cls = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
+                    let rankDisplay = rank === 1 ? '🥇 1' : rank === 2 ? '🥈 2' : rank === 3 ? '🥉 3' : rank;
+                    
+                    tbody.innerHTML += `<tr><td class="${cls}">${rankDisplay}</td><td>${player.id} ${player.name}</td><td><b>${player.points}</b></td></tr>`;
+                });
+            } catch (error) {
+                document.getElementById('leaderboard-body').innerHTML = '<tr><td colspan="3" style="color:red;">讀取資料失敗，請重新整理網頁。</td></tr>';
+            }
+        }
+
+        // 網頁載入時自動執行
+        fetchScores();
+    </script>
+</body>
+</html>
