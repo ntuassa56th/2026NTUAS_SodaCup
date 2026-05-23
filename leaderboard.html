@@ -7,7 +7,7 @@
     <style>
         body { font-family: sans-serif; background: #E3F2FD; padding: 10px; text-align: center; }
         .container { max-width: 800px; background: white; padding: 20px; border-radius: 12px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .table-wrapper { overflow-x: auto; margin-top: 20px; } /* 讓表格在手機上可以左右滑動 */
+        .table-wrapper { overflow-x: auto; margin-top: 20px; } 
         table { width: 100%; border-collapse: collapse; min-width: 600px; }
         th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; font-size: 15px; }
         th { background-color: #f4f4f4; white-space: nowrap; }
@@ -16,6 +16,7 @@
         .rank-1 { color: #FFD700; font-weight: bold; font-size: 1.2em; }
         .rank-2 { color: #C0C0C0; font-weight: bold; font-size: 1.1em; }
         .rank-3 { color: #CD7F32; font-weight: bold; font-size: 1.1em; }
+        .not-joined { color: #aaa; }
     </style>
 </head>
 <body>
@@ -44,17 +45,28 @@
     </div>
 
     <script>
-        // ★★★ 請替換成你的 URL ★★★
+        // ★ 已經替換為你的專屬 URL
         const API_URL = 'https://script.google.com/macros/s/AKfycbxaUTepnwwoDFg1FqBDe3XDxXNOjJtIhgbj4JJ0-F6qeydnEt3RwGc7tXQbcKMxYuk/exec';
+
+        // 安全轉換分數的函式：如果是數字就回傳數字，如果是 '-' 或空白就當作 0
+        const parseScore = (val) => {
+            const num = Number(val);
+            return isNaN(num) ? 0 : num;
+        };
 
         async function fetchScores() {
             try {
                 const response = await fetch(API_URL + '?action=read');
                 let data = await response.json();
                 
-                // 計算每個人的總分
+                // 計算總分，強制套用 parseScore 確保加總的絕對是「數學數字」
                 data.forEach(player => {
-                    player.totalPts = player.tableTennis + player.volleyball + player.basketball + player.football + player.badminton;
+                    player.totalPts = 
+                        parseScore(player.tableTennis) + 
+                        parseScore(player.volleyball) + 
+                        parseScore(player.basketball) + 
+                        parseScore(player.football) + 
+                        parseScore(player.badminton);
                 });
 
                 // 依照總分由高到低排序
@@ -63,6 +75,9 @@
                 const tbody = document.getElementById('leaderboard-body');
                 tbody.innerHTML = ''; 
                 
+                // 格式化輸出（未參加顯示淺色的 '-'）
+                const formatScore = (score) => score === '-' ? '<span class="not-joined">-</span>' : score;
+
                 data.forEach((player, index) => {
                     let rank = index + 1;
                     let cls = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
@@ -73,11 +88,11 @@
                             <td class="${cls}">${rankDisplay}</td>
                             <td class="player-col">${player.id} ${player.name}</td>
                             <td class="total-col">${player.totalPts}</td>
-                            <td>${player.tableTennis}</td>
-                            <td>${player.volleyball}</td>
-                            <td>${player.basketball}</td>
-                            <td>${player.football}</td>
-                            <td>${player.badminton}</td>
+                            <td>${formatScore(player.tableTennis)}</td>
+                            <td>${formatScore(player.volleyball)}</td>
+                            <td>${formatScore(player.basketball)}</td>
+                            <td>${formatScore(player.football)}</td>
+                            <td>${formatScore(player.badminton)}</td>
                         </tr>`;
                 });
             } catch (error) {
