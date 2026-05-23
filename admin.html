@@ -37,10 +37,10 @@
         <div id="admin-section" class="hidden">
             <div class="badge-container" id="badges">
                 <div class="sport-badge" id="current-sport">登入：未知</div>
-                <div class="quota-badge" id="current-quota">剩餘額度：計算中...</div>
+                <div class="quota-badge" id="current-quota">單人單項上限：2000分</div>
             </div>
             
-            <select id="admin-sport-select" class="hidden">
+            <select id="admin-sport-select" class="hidden" onchange="renderPlayerList()">
                 <option value="桌球">桌球</option>
                 <option value="排球">排球</option>
                 <option value="籃球">籃球</option>
@@ -52,7 +52,6 @@
                 <option value="">載入選手名單中...</option>
             </select>
             
-            <!-- 分數輸入框 -->
             <input type="number" id="pts" placeholder="輸入分數">
             <button onclick="submitScore()">確認送出</button>
             <div id="status" class="msg"></div>
@@ -60,9 +59,10 @@
     </div>
 
     <script>
-        // ★★★ 請替換成你的 URL ★★★
+        // ★ 已經替換為你的專屬 URL
         const API_URL = 'https://script.google.com/macros/s/AKfycbxaUTepnwwoDFg1FqBDe3XDxXNOjJtIhgbj4JJ0-F6qeydnEt3RwGc7tXQbcKMxYuk/exec';
 
+        // ★ 保留了你設定的所有密碼
         const accounts = {
             '0803': '桌球',
             '0817': '排球',   // 男排隊長密碼
@@ -73,8 +73,17 @@
             'sean1018': 'admin'  // ★ 總籌的最高權限密碼
         };
 
+        const sportKeyMap = {
+            '桌球': 'tableTennis',
+            '排球': 'volleyball',
+            '籃球': 'basketball',
+            '足球': 'football',
+            '羽球': 'badminton'
+        };
+
         let activeSport = ''; 
         let userRole = 'captain'; 
+        let allPlayers = []; // 將全系名單存在本地端
 
         function login() {
             const pwd = document.getElementById('pwd').value;
@@ -92,18 +101,15 @@
                     document.getElementById('current-quota').innerText = `權限：無限制`;
                     document.getElementById('admin-sport-select').classList.remove('hidden');
                     
-                    // Admin 專屬設定：可輸入負數
                     ptsInput.placeholder = "輸入分數 (支援負數扣分)";
                     ptsInput.removeAttribute('min'); 
                 } else {
                     userRole = 'captain';
                     document.getElementById('current-sport').innerText = `登入項目：${activeSport}`;
+                    document.getElementById('current-quota').innerText = `單人單項上限：2000分`; 
                     
-                    // 隊長專屬設定：只能輸入正數
-                    ptsInput.placeholder = "輸入分數...";
+                    ptsInput.placeholder = "輸入分數..."; // 保留你自訂的文字
                     ptsInput.setAttribute('min', '1'); 
-                    
-                    fetchQuota(); 
                 }
                 
                 loadPlayers();
@@ -112,33 +118,31 @@
             }
         }
 
-        async function fetchQuota() {
-            if (userRole === 'admin') return; 
-            try {
-                const response = await fetch(`${API_URL}?action=get_quota&sport=${activeSport}`);
-                const result = await response.json();
-                if(result.remaining !== undefined) {
-                    document.getElementById('current-quota').innerText = `剩餘可用：${result.remaining} 分`;
-                }
-            } catch (error) {
-                document.getElementById('current-quota').innerText = `額度讀取失敗`;
-            }
-        }
-
         async function loadPlayers() {
             try {
                 const response = await fetch(API_URL + '?action=read');
-                const players = await response.json();
-                const select = document.getElementById('player');
-                select.innerHTML = '<option value="">請選擇選手...</option>'; 
-                
-                players.forEach(p => {
-                    select.innerHTML += `<option value="${p.id}">${p.id} - ${p.name}</option>`;
-                });
+                allPlayers = await response.json();
+                renderPlayerList(); // 抓取完畢後進行過濾渲染
             } catch (error) {
                 document.getElementById('status').innerText = '❌ 無法載入名單，請重新整理網頁。';
                 document.getElementById('status').className = 'msg error';
             }
+        }
+
+        // 依據「當前選擇的運動」過濾出有報名的選手
+        function renderPlayerList() {
+            const select = document.getElementById('player');
+            select.innerHTML = '<option value="">請選擇選手...</option>';
+            
+            const targetSport = (userRole === 'admin') ? document.getElementById('admin-sport-select').value : activeSport;
+            const sportKey = sportKeyMap[targetSport];
+
+            allPlayers.forEach(p => {
+                // 只有當該項目不是 '-' (未報名) 時，才加入選單
+                if (p[sportKey] !== '-') {
+                    select.innerHTML += `<option value="${p.id}">${p.id} - ${p.name} (目前: ${p[sportKey]}分)</option>`;
+                }
+            });
         }
 
         async function submitScore() {
@@ -147,13 +151,13 @@
             const ptsValue = parseInt(pts);
             
             const targetSport = (userRole === 'admin') ? document.getElementById('admin-sport-select').value : activeSport;
+            const sportKey = sportKeyMap[targetSport];
 
             if(!player) { alert('請選擇選手！'); return; }
             if(pts === '') { alert('請輸入分數！'); return; }
             
-            // 前端防線：如果隊長輸入小於等於 0 的數字，直接擋下
             if(userRole !== 'admin' && ptsValue <= 0) {
-                alert('僅可進行加分！');
+                alert('僅可進行加分！'); // 保留你自訂的阻擋文字
                 return;
             }
 
@@ -172,8 +176,11 @@
                     statusEl.className = 'msg success';
                     document.getElementById('pts').value = ''; 
                     
-                    if(userRole !== 'admin') {
-                        document.getElementById('current-quota').innerText = `剩餘可用：${result.remaining} 分`;
+                    // 在本地端更新該選手的分數，並重新渲染名單，不用重新載入網頁
+                    const playerIndex = allPlayers.findIndex(p => p.id === player);
+                    if (playerIndex > -1) {
+                        allPlayers[playerIndex][sportKey] = result.newTotal;
+                        renderPlayerList();
                     }
                 } else {
                     statusEl.innerText = `❌ 失敗：${result.error}`;
